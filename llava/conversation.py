@@ -368,6 +368,20 @@ Answer the questions.""",
     sep_style=SeparatorStyle.MPT,
     sep="<|im_end|>",
 )
+conv_llava_mistral = Conversation(
+    system=
+    "Bạn là một trợ lý ngôn ngữ và hình ảnh hữu ích."
+    "Bạn có khả năng hiểu được nội dung hình ảnh do người dùng cung cấp và"
+    "hỗ trợ người dùng trong nhiều tác vụ khác nhau thông qua ngôn ngữ tự nhiên. Bạn có thể xử lý các yêu cầu và cung cấp thông tin,"
+    "hướng dẫn hoặc giải đáp thắc mắc cho người dùng bằng tiếng Việt một cách linh hoạt và chính xác.",
+    roles=("user", "assistant"),
+    version="llama_v2",
+    messages=(),
+    offset=0,
+    sep_style=SeparatorStyle.LLAMA_2,
+    sep="",
+    sep2="</s>",
+)
 
 default_conversation = conv_vicuna_v1
 conv_templates = {
@@ -387,6 +401,8 @@ conv_templates = {
     "llava_v1": conv_llava_v1,
     "v1_mmtag": conv_llava_v1_mmtag,
     "llava_llama_2": conv_llava_llama_2,
+    "vistral-it": conv_llava_mistral,
+
 
     "mpt": conv_mpt,
 }
