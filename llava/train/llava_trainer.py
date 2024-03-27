@@ -1,38 +1,17 @@
 import os
+from typing import List, Optional
+
 import torch
 import torch.nn as nn
 
 from torch.utils.data import Sampler
-
 from transformers import Trainer
 from transformers.trainer import (
-    is_sagemaker_mp_enabled,
     get_parameter_names,
     has_length,
     ALL_LAYERNORM_LAYERS,
     logger,
 )
-from typing import List, Optional
-
-
-def maybe_zero_3(param, ignore_status=False, name=None):
-    from deepspeed import zero
-    from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
-    if hasattr(param, "ds_id"):
-        if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
-            if not ignore_status:
-                print(name, 'no ignore status')
-        with zero.GatheredParameters([param]):
-            param = param.data.detach().cpu().clone()
-    else:
-        param = param.detach().cpu().clone()
-    return param
-
-
-def get_mm_adapter_state_maybe_zero_3(named_params, keys_to_match):
-    to_return = {k: t for k, t in named_params if any(key_match in k for key_match in keys_to_match)}
-    to_return = {k: maybe_zero_3(v, ignore_status=True, name=k).cpu() for k, v in to_return.items()}
-    return to_return
 
 
 def split_to_even_chunks(indices, lengths, num_chunks):
@@ -55,7 +34,12 @@ def split_to_even_chunks(indices, lengths, num_chunks):
             chunks_lengths[shortest_chunk] = float("inf")
 
     return chunks
-
+def get_peft_state_non_lora(named_params, require_grad_only=True):
+    to_return = {k: t for k, t in named_params if "lora_" not in k}
+    if require_grad_only:
+        to_return = {k: t for k, t in to_return.items() if t.requires_grad}
+    to_return = {k: v.detach().cpu().clone() for k, v in to_return.items()}
+    return to_return
 
 def get_modality_length_grouped_indices(lengths, batch_size, world_size, generator=None):
     # We need to use torch for the random part as a distributed sampler will set the random seed for torch.
@@ -97,6 +81,7 @@ def get_length_grouped_indices(lengths, batch_size, world_size, generator=None, 
 
 
 class LengthGroupedSampler(Sampler):
+    # fine-tuningのときだけ使っているみたい
     r"""
     Sampler that samples indices in a way that groups together features of the dataset of roughly the same length while
     keeping a bit of randomness.
@@ -130,6 +115,12 @@ class LengthGroupedSampler(Sampler):
         return iter(indices)
 
 
+def get_mm_adapter_state(named_params, keys_to_match):
+    to_return = {k: t for k, t in named_params if any(key_match in k for key_match in keys_to_match)}
+    to_return = {k: v.detach().cpu().clone() for k, v in to_return.items()}
+    return to_return
+
+
 class LLaVATrainer(Trainer):
 
     def _get_train_sampler(self) -> Optional[torch.utils.data.Sampler]:
@@ -154,9 +145,6 @@ class LLaVATrainer(Trainer):
         We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
         Trainer's init through `optimizers`, or subclass and override this method in a subclass.
         """
-        if is_sagemaker_mp_enabled():
-            return super().create_optimizer()
-
         opt_model = self.model
 
         if self.optimizer is None:
@@ -228,6 +216,7 @@ class LLaVATrainer(Trainer):
         return self.optimizer
 
     def _save_checkpoint(self, model, trial, metrics=None):
+    
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
             from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
             checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
@@ -236,18 +225,26 @@ class LLaVATrainer(Trainer):
             output_dir = os.path.join(run_dir, checkpoint_folder)
 
             # Only save Adapter
-            keys_to_match = ['mm_projector', 'vision_resampler']
-            if getattr(self.args, "use_im_start_end", False):
-                keys_to_match.extend(['embed_tokens', 'embed_in'])
-
-            weight_to_save = get_mm_adapter_state_maybe_zero_3(self.model.named_parameters(), keys_to_match)
+            #keys_to_match = ['mm_projector', 'vision_resampler']
+            keys_to_match = ['mm_projector']
+            weight_to_save = get_mm_adapter_state(self.model.named_parameters(), keys_to_match)
+            #weight_to_save = self.model.named_parameters().detach().cpu().clone()
 
             if self.args.local_rank == 0 or self.args.local_rank == -1:
                 self.model.config.save_pretrained(output_dir)
                 torch.save(weight_to_save, os.path.join(output_dir, f'mm_projector.bin'))
         else:
             super(LLaVATrainer, self)._save_checkpoint(model, trial, metrics)
+            if getattr(self.args, 'lora_enable', False) or getattr(self.args, 'dora_enable', False):
+                from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
+                checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
 
+                run_dir = self._get_output_dir(trial=trial)
+                output_dir = os.path.join(run_dir, checkpoint_folder)
+                non_lora_state_dict = get_peft_state_non_lora(
+                self.model.named_parameters()
+                )
+                torch.save(non_lora_state_dict, os.path.join(output_dir, f'non_lora_trainables.bin'))
     def _save(self, output_dir: Optional[str] = None, state_dict=None):
         if getattr(self.args, 'tune_mm_mlp_adapter', False):
             pass
