@@ -13,6 +13,7 @@ class SeparatorStyle(Enum):
     MPT = auto()
     PLAIN = auto()
     LLAMA_2 = auto()
+    VISTRAL = auto()
 
 
 @dataclasses.dataclass
@@ -101,6 +102,27 @@ class Conversation:
                     ret += message + seps[i % 2]
                 else:
                     ret += ""
+        elif self.sep_style == SeparatorStyle.VISTRAL:
+            wrap_sys = lambda msg: f"<<SYS>>\n{msg}\n<</SYS>>\n\n" if len(msg) > 0 else msg
+            wrap_inst = lambda msg: f"<s>[INST] {msg} [/INST]"
+            ret = ""
+
+            for i, (role, message) in enumerate(messages):
+                if i == 0:
+                    assert message, "first message should not be none"
+                    assert role == self.roles[0], "first message should come from user"
+                if message:
+                    if type(message) is tuple:
+                        message, _, _ = message
+                    if i == 0: message = wrap_sys(self.system) + message
+                    if i % 2 == 0:
+                        message = wrap_inst(message)
+                        ret += self.sep + message
+                    else:
+                        ret += " " + message + " " + self.sep2
+                else:
+                    ret += ""
+            ret = ret.lstrip(self.sep)
         else:
             raise ValueError(f"Invalid style: {self.sep_style}")
 
@@ -370,15 +392,15 @@ Answer the questions.""",
 )
 conv_llava_mistral = Conversation(
     system=
-    "Bạn là một trợ lý ngôn ngữ và hình ảnh hữu ích."
-    "Bạn có khả năng hiểu được nội dung hình ảnh do người dùng cung cấp và"
-    "hỗ trợ người dùng trong nhiều tác vụ khác nhau thông qua ngôn ngữ tự nhiên. Bạn có thể xử lý các yêu cầu và cung cấp thông tin,"
-    "hướng dẫn hoặc giải đáp thắc mắc cho người dùng bằng tiếng Việt một cách linh hoạt và chính xác.",
+    "Bạn là một trợ lý ngôn ngữ và hình ảnh hữu ích. "
+    "Bạn có khả năng hiểu được nội dung hình ảnh do người dùng cung cấp và "
+    "hỗ trợ người dùng trong nhiều tác vụ khác nhau thông qua ngôn ngữ tự nhiên. Bạn có thể xử lý các yêu cầu và cung cấp thông tin, "
+    "hướng dẫn hoặc giải đáp thắc mắc cho người dùng bằng tiếng Việt một cách linh hoạt và chính xác. ",
     roles=("user", "assistant"),
     version="llama_v2",
     messages=(),
     offset=0,
-    sep_style=SeparatorStyle.LLAMA_2,
+    sep_style=SeparatorStyle.VISTRAL,
     sep="",
     sep2="</s>",
 )

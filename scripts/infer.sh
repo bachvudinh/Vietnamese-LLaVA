@@ -1,5 +1,5 @@
 python ../llava/serve/cli.py \
---model-path ../llava-vistral-merged \
---image-file https://huggingface.co/rinna/bilingual-gpt-neox-4b-minigpt4/resolve/main/sample.jpg \
+--model-path ../llava-vistral-merged/checkpoint-6000/ \
+--image-file /home/bachvd/Workspace/Vietnamese-LLaVA/hihi.jpg \
 --conv-mode vistral-it \
---load-8bit
+--load-4bit
