@@ -1,16 +1,15 @@
 #!/bin/bash
 
 deepspeed llava/train/train_mem.py \
-    --lora_enable True --lora_r 32 --lora_alpha 64 \
+    --lora_enable True --lora_r 32 --lora_alpha 64 --mm_projector_lr 2e-5 \
     --deepspeed ./scripts/zero2.json \
     --freeze_backbone False \
     --tune_mm_mlp_adapter False \
-    --model_name_or_path Viet-Mistral/Vistral-7B-Chat \
+    --model_name_or_path /home/nlp/bachvd2/Vietnamese-LLaVA/llava-vistral-merged/ \
     --version vistral-it \
-    --data_path ./playground/data/train_llava_improved.json \
+    --data_path ./playground/data/text_rich.json \
     --image_folder ./finetune_data/ \
     --vision_tower openai/clip-vit-large-patch14-336 \
-    --pretrain_mm_mlp_adapter ./llava-vistral-7b-pretrain/checkpoint-144000/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
@@ -18,16 +17,16 @@ deepspeed llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --group_by_modality_length False \
     --bf16 True \
-    --output_dir ./llava-vistral-7b-IT-lora-2/ \
-    --num_train_epochs 1 \
+    --output_dir ./llava-vistral-7b-IT-lora-stage2/ \
+    --num_train_epochs 5 \
     --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 4 \
-    --gradient_accumulation_steps 16 \
+    --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
-    --save_steps 2000 \
+    --save_steps 1000 \
     --save_total_limit 4 \
-    --learning_rate 2e-5 \
+    --learning_rate 2e-4 \
     --weight_decay 0. \
     --warmup_ratio 0.03 \
     --lr_scheduler_type "cosine" \
