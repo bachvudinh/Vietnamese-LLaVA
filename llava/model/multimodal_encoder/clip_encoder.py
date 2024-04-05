@@ -8,36 +8,26 @@ from transformers import (
 
 
 class CLIPVisionTower(nn.Module):
-    def __init__(
-        self, 
-        vision_tower_name: str="openai/clip-vit-large-patch14-336", 
-        mm_vision_select_layer: int=-2, # v1.5 is -2
-        mm_vision_select_feature: str="patch",
-        delay_load: bool=False,
-        requires_grad: bool=False
-    ):
+    def __init__(self, vision_tower, args, delay_load=False):
         super().__init__()
 
         self.is_loaded = False
-        self.requires_grad = requires_grad
 
-        self.vision_tower_name = vision_tower_name
-        self.select_layer = mm_vision_select_layer
-        self.select_feature = mm_vision_select_feature
-
-        self.image_processor = None
-        self.vision_tower = None
+        self.vision_tower_name = vision_tower
+        self.select_layer = args.mm_vision_select_layer
+        self.select_feature = getattr(args, 'mm_vision_select_feature', 'patch')
 
         if not delay_load:
             self.load_model()
-        else:
+        elif getattr(args, 'unfreeze_mm_vision_tower', False):
+            self.load_model()
+        else: 
             if "clip" in self.vision_tower_name:
                 self.cfg_only = CLIPVisionConfig.from_pretrained(self.vision_tower_name)
             elif "siglip" in self.vision_tower_name:
                 self.cfg_only = SiglipVisionConfig.from_pretrained(self.vision_tower_name)
             else:
                 raise ValueError(f'Unsupported vision_tower_name: {self.vision_tower_name}')
-
     def load_model(self):
         if "clip" in self.vision_tower_name:
             self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_name)
@@ -47,10 +37,9 @@ class CLIPVisionTower(nn.Module):
             self.vision_tower = SiglipVisionModel.from_pretrained(self.vision_tower_name)
         else:
             raise ValueError(f'Unsupported vision_tower_name: {self.vision_tower_name}')
-        self.vision_tower.requires_grad_(self.requires_grad)
+        self.vision_tower.requires_grad_(False)
 
         self.is_loaded = True
-
     def feature_select(self, image_forward_outs):
         image_features = image_forward_outs.hidden_states[self.select_layer]
         if self.select_feature == 'patch':
@@ -97,6 +86,10 @@ class CLIPVisionTower(nn.Module):
     @property
     def hidden_size(self):
         return self.config.hidden_size
+
+    @property
+    def num_patches_per_side(self):
+        return self.config.image_size // self.config.patch_size
 
     @property
     def num_patches(self):
