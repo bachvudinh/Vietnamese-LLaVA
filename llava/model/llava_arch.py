@@ -92,10 +92,8 @@ class LlavaMetaForCausalLM(ABC):
         return image_features
     
     def embed(self, input_ids):
-        if self.base_model == "gpt2":
-            return self.transformer.wte(input_ids)
-        elif self.base_model == "gpt_neox":
-            return self.embed_in(input_ids) # NeoX
+        if self.base_model == "mistral":
+            return self.get_model().embed_tokens(input_ids)
         elif self.base_model == "llama":
             return self.get_model().embed_tokens(input_ids) # Llama
 
