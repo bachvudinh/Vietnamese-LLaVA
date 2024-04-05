@@ -28,13 +28,17 @@ class CLIPVisionTower(nn.Module):
                 self.cfg_only = SiglipVisionConfig.from_pretrained(self.vision_tower_name)
             else:
                 raise ValueError(f'Unsupported vision_tower_name: {self.vision_tower_name}')
-    def load_model(self):
+    def load_model(self, device_map=None):
+        if self.is_loaded:
+            print('{} is already loaded, `load_model` called again, skipping.'.format(self.vision_tower_name))
+            return
+        
         if "clip" in self.vision_tower_name:
             self.image_processor = CLIPImageProcessor.from_pretrained(self.vision_tower_name)
-            self.vision_tower = CLIPVisionModel.from_pretrained(self.vision_tower_name)
+            self.vision_tower = CLIPVisionModel.from_pretrained(self.vision_tower_name, device_map=device_map)
         elif "siglip" in self.vision_tower_name:
             self.image_processor = SiglipImageProcessor.from_pretrained(self.vision_tower_name)
-            self.vision_tower = SiglipVisionModel.from_pretrained(self.vision_tower_name)
+            self.vision_tower = SiglipVisionModel.from_pretrained(self.vision_tower_name, device_map=device_map)
         else:
             raise ValueError(f'Unsupported vision_tower_name: {self.vision_tower_name}')
         self.vision_tower.requires_grad_(False)
