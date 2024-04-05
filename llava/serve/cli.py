@@ -29,6 +29,7 @@ def main(args):
     disable_torch_init()
 
     model_name = get_model_name_from_path(args.model_path)
+    print(f"Model name: {model_name}")
     tokenizer, model, image_processor, context_len = load_pretrained_model(args.model_path, args.model_base, model_name, args.load_8bit, args.load_4bit, device=args.device)
 
     if "llama-2" in model_name.lower():
@@ -93,8 +94,10 @@ def main(args):
         stop_str = conv.sep if conv.sep_style != SeparatorStyle.TWO else conv.sep2
         keywords = [stop_str]
         streamer = TextStreamer(tokenizer, skip_prompt=True, skip_special_tokens=True)
+        
 
         with torch.inference_mode():
+            print("ou")
             output_ids = model.generate(
                 input_ids,
                 images=image_tensor,
